@@ -1,0 +1,5 @@
+Name: NAMEHERE.xml
+type: ptolemy.kernel.ComponentEntity
+lsid: urn:lsid:uq.edu.au:actor:1:ACTORNO
+handler: org.kepler.kar.handlers.ActorMetadataKAREntryHandler
+

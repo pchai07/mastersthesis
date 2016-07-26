@@ -1,0 +1,345 @@
+/*
+ * Build script for Kepler Modules
+ * Original Author: Zane van Iperen
+ * Modified: Peter Chai
+ */
+
+/* These are imported for autocompletion when editing in an IDE. */
+import org.gradle.api.*;
+import org.gradle.api.file.*;
+
+apply plugin: 'java'
+
+sourceCompatibility = '1.5'
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+allprojects {
+	ext {
+		keplerVersion = '2.4'
+		versionSuffix = '.0'
+		keplerVersionValue = "${keplerVersion}${versionSuffix}"
+		safeProjectName = "${rootProject.name}".toLowerCase()
+		moduleFolderName = "${safeProjectName}-${keplerVersionValue}"
+		
+		/* Find Kepler */
+		keplerPath = System.getenv('KEPLER')
+		//keplerPath = "/home/zane/Desktop/staging/kepler/kepler-2.4"
+		if(keplerPath == null) {
+			throw new GradleException("KEPLER environment variable not found.");
+		}
+
+		System.out.println("Found Kepler installation at $keplerPath");
+
+	
+		guiMappingFile = "${keplerPath}/gui-${keplerVersionValue}/resources/configurations/uiSVGIconMappingsByClass.xml"
+		ontologyFile = "${keplerPath}/common-${keplerVersionValue}/configs/ptolemy/configs/kepler/ontologies/ontology_catalog.xml"
+		
+		moduleInfoFile = "${keplerPath}/kepler-${keplerVersionValue}/module-info/modules.txt"
+		buildModuleInfoFile = "${keplerPath}/build-area/modules.txt"
+	
+	}
+
+	archivesBaseName = "${safeProjectName}"
+	version = "${keplerVersion}"
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	compile files("${keplerPath}/ptolemy-kepler-${keplerVersionValue}/target/ptolemy-kepler-${keplerVersion}.jar")
+    compile fileTree(dir: "${keplerPath}/ptolemy-kepler-${keplerVersionValue}/lib/", include: ['*.jar'])
+	compile fileTree(dir: "${keplerPath}/core-${keplerVersionValue}/lib/jar", include: ['*.jar'])
+	compile files("${keplerPath}/util-2.2.0/target/util-2.2.jar")
+	compile files("${keplerPath}/ptolemy-kepler-2.4.0/target/ptolemy-kepler-2.4.jar")
+	compile files("${keplerPath}/r-2.4.0/target/r-2.4.jar")
+	compile files("${keplerPath}/core-2.4.0/target/core-2.4.jar")
+	compile files("${keplerPath}/kepler-2.4.0/target/kepler-2.4.jar")
+	compile files("${keplerPath}/kepler-tasks-2.4.0/lib/jar/kepler-tasks.jar")
+	compile files("${keplerPath}/actors-2.4.0/target/actors-2.4.jar")
+	compile files("${keplerPath}/common-2.4.0/target/common-2.4.jar")
+	compile fileTree(dir: "/usr/share/java/", include: ['*.jar'])
+	
+	/* HACKHACKHACK: To assist when writing build.gradle. Comment this when building. */
+	//compile fileTree(dir: "/opt/gradle-2.11/lib", include: ['*.jar'])
+
+	testCompile group: "junit", name: "junit", version: "4.11"
+}
+
+sourceSets {
+	main {
+		java {
+			srcDir 'src'
+		}
+	}
+
+	test {
+		java {
+			srcDir 'test'
+		}
+	}
+}
+
+
+task(help) {
+	doLast {
+		System.out.print('''Nimrod/OK module integration.
+
+Note:  You must have the KEPLER environment variable set.
+
+Note:  You must also update build.props with the correct LSID.
+       The last number used can be found in $KEPLER/src/actors/README
+
+Note: You must have Nimrod/K installed.
+
+Note:  Make sure the icons are mapped in:
+       ${KEPLER}/configs/ptolemy/configs/kepler/uiSVGIconMappingsByClass.properties
+
+To integrate the R modules into KEPLER:
+    gradle install
+
+To clean the R modules from Kepler:
+    gradle nimrod_clean
+''')
+	}
+}
+
+task nimrodok_clean_module(type: Delete) {
+	delete "${keplerPath}/${moduleFolderName}"
+}
+
+task nimrodok_clean_data(type: Delete) {
+	String home = System.getProperty('user.home')
+	delete "${home}/KeplerData/modules/${safeProjectName}"
+}
+
+task nimrodok_clean(dependsOn: [nimrodok_clean_module, nimrodok_clean_data]) { }
+
+task clean_cache(type: Delete, dependsOn: nimrodok_clean) {
+	String home = System.getProperty('user.home')
+	delete "${home}/.kepler", "${home}/KeplerData"
+}
+
+task install_module_jar(type: Copy, dependsOn: jar) {
+	from("${jar.archivePath}") into("${keplerPath}/${moduleFolderName}/target")
+}
+
+task install_module_files(type: Copy) {
+	from('module/') into("${keplerPath}/${moduleFolderName}")
+}
+
+
+
+
+
+task update_kepler_modules_info_backup(type: Copy) {
+	from("${moduleInfoFile}") into("${projectDir}/backup/module-info")
+}
+
+task update_kepler_modules_build_backup(type: Copy) {
+	from("${buildModuleInfoFile}") into("${projectDir}/backup/build-area")
+}
+
+task update_kepler_modules_info(dependsOn: update_kepler_modules_info_backup) {
+	doLast { addEntry("${moduleInfoFile}", "${safeProjectName}-${keplerVersion}.^", "nimrodk-2.4.^") }
+}
+
+task update_kepler_modules_build(dependsOn: update_kepler_modules_build_backup) {
+	doLast { addEntry("${buildModuleInfoFile}", "${safeProjectName}-${keplerVersion}.^", "nimrodk-2.4.^") }
+}
+
+task install(dependsOn: [install_module_jar, install_module_files, update_kepler_modules_info, update_kepler_modules_build]) { }
+
+
+import javax.xml.parsers.*;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.dom.DOMSource;
+import org.w3c.dom.Document;
+import org.w3c.dom.*
+
+def void addEntry(String fileName, String entry, String insertBefore) throws IOException {
+		
+	HashSet<String> dup = new LinkedHashSet<>(); /* <== LinkedHashSet preserves order. */
+	
+	BufferedReader br = new BufferedReader(new FileReader(fileName));
+	br.withCloseable {
+	//try(BufferedReader br = new BufferedReader(new FileReader(fileName))) {
+		for(String line; (line = br.readLine()) != null;) {
+			dup.add(line.trim());
+		}
+	}
+
+	/* Remove us if we already exist. */
+	dup.remove(entry);
+		
+	FileWriter w = new FileWriter(fileName);
+	
+	w.withCloseable {
+	//try(FileWriter w = new FileWriter(fileName)) {
+		boolean inserted = false;
+		for(String s : dup) {
+			if(s.equals(insertBefore)) {
+				w.write(entry);
+				w.write('\n');
+				inserted = true;
+			}
+			w.write(s);
+			w.write('\n');
+		}
+
+		/* If we weren't inserted, just dump us at the end. */
+		if(!inserted) {
+			w.write(entry);
+			w.write('\n');
+		}
+	}
+		
+}
+	
+/* Icon mappings */
+def void addOrUpdatePair(Node config, String name, String value) {
+	NodeList l = config.getChildNodes();
+	Node pair = null;
+
+	for(int i = 0; i < l.getLength(); ++i) {
+		Node node = l.item(i);
+		if(node.getNodeType() != Node.ELEMENT_NODE) {
+			continue;
+		}
+
+		if(isPair((Element)node, name)) {
+			pair = node;
+			break;
+		}
+
+	}
+
+	if(pair == null) {
+		pair = config.getOwnerDocument().createElement("pair");
+		config.appendChild(pair);
+	}
+
+	/* Kind of a hack, just remove all children. We're re-creating them anyway. */
+	l = pair.getChildNodes();
+	while(l.getLength() > 0) {
+		pair.removeChild(l.item(0));
+	}
+
+	Document document = config.getOwnerDocument();
+
+	Element nameElement = document.createElement("name");
+	nameElement.setTextContent(name);
+	pair.appendChild(nameElement);
+
+	Element valueElement = document.createElement("value");
+	valueElement.setTextContent(value);
+	pair.appendChild(valueElement);
+
+}
+	
+def boolean isPair(Element pair, String name) {
+	if(!pair.getNodeName().equals("pair")) {
+		return false;
+	}
+
+	Element nameElement = null;
+	NodeList kvList = pair.getChildNodes();
+	for(int j = 0; j < kvList.getLength(); ++j) {
+		Node keyOrValue = kvList.item(j);
+
+		if(keyOrValue.getNodeType() != Node.ELEMENT_NODE) {
+			continue;
+		}
+
+		/* Find the "name" */
+		if(keyOrValue.getNodeName().equals("name")) {
+			nameElement = (Element)keyOrValue;
+			break;
+		}
+	}
+
+	/* No name element, don't do anything. */
+	if(nameElement == null) {
+		return false;
+	}
+
+	return nameElement.getTextContent().equals(name);
+}
+
+/* Ontology */
+def void addOrUpdateOntology(Node ontologies, String owlFile, boolean library) {
+	NodeList l = ontologies.getChildNodes();
+	boolean found = false;
+	for(int i = 0; i < l.getLength(); ++i) {
+		Node node = l.item(i);
+		if(node.getNodeType() != Node.ELEMENT_NODE) {
+			continue;
+		}
+
+		Element ontology = (Element)l.item(i);
+		/* Ignore any non-ontology nodes, we don't care about invalid stuff
+		 * that's not ours. */
+		if(!ontology.getNodeName().equals("ontology")) {
+			continue;
+		}
+
+		String filename = ontology.getAttribute("filename");
+
+		/* If we exist, double check our library value is correct and break. */
+		if(filename.equals(owlFile)) {
+			ontology.setAttribute("library", library ? "true" : "false");
+			found = true;
+			break;
+		}
+	}
+
+	/* If we're already there, just return. */
+	if(found) {
+		return;
+	}
+
+	/* Otherwise, add it! */
+	Element newOntology = ontologies.getOwnerDocument().createElement("ontology");
+
+	newOntology.setAttribute("filename", owlFile);
+	newOntology.setAttribute("library", library ? "true" : "false");
+	ontologies.appendChild(newOntology);
+}
+
+/* Generic XML functions. */
+def Node findOrCreateNode(Node root, String nodeName) {
+	NodeList l = root.getChildNodes();
+
+	Node node = null;
+	for(int i = 0; i < l.getLength(); ++i) {
+		Node n = l.item(i);
+		if(n.getNodeName().equals(nodeName)) {
+			node = n;
+			break;
+		}
+	}
+
+	if(node == null) {
+		node = root.getOwnerDocument().createElement(nodeName);
+		root.appendChild(node);
+	}
+
+	return node;
+}
+
+def void dumpXML(Document document, OutputStream out) {
+	TransformerFactory tf = TransformerFactory.newInstance();
+	tf.setAttribute("indent-number", 4);
+
+	Transformer serializer = tf.newTransformer();
+	serializer.setOutputProperty(OutputKeys.INDENT, "yes");
+	serializer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+
+	serializer.transform(new DOMSource(document), new StreamResult(out));
+}
+
