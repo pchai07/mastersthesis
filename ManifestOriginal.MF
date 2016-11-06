@@ -1,6 +1,0 @@
-Manifest-Version: 1.4.2
-KAR-Version: 2.0
-lsid: urn:lsid:uq.edu.au:kar:1:1
-openable: false
-
-
