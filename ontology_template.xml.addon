@@ -1,0 +1,13 @@
+  <!-- Add the content of this file between '--BEGIN--' and '--END--' lines, to: 
+	   $KEPLER/common-<version>/configs/ptolemy/configs/kepler/ontologies/ontology_catalog.xml.
+	   Make sure to add this just before the closing </ontology> statement
+	   
+	   Copy nimrod-neuroimaging-project.owl to 
+	   $KEPLER/common-<version>/configs/ptolemy/configs/kepler/ontologies/ -->
+
+--BEGIN--
+  
+  <!-- Nimrod/OK -->
+  <ontology filename="ONTOLOGYNAME" library="true"/>
+
+--END--
