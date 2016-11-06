@@ -14,6 +14,7 @@ Module folder creates a folder from the input eg.
 Template File is the rscript converted to template form.
 
 Converter only takes one file at a time.
+All files in this folder required for converter to work.
 
 When prompted to overwrite, this means the module folder already exists.
 Yes will continue installation of actor into the module.
