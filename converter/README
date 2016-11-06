@@ -6,3 +6,24 @@ Peter Chai
 
 2. Instructions
 
+To run converter: python rconvert.py [ModuleFolder] [Template File]
+
+Module folder creates a folder from the input eg.
+/home/ec2-user/Example_Folder
+
+Template File is the rscript converted to template form.
+
+Converter only takes one file at a time.
+
+When prompted to overwrite, this means the module folder already exists.
+Yes will continue installation of actor into the module.
+This will also overwrite actor source files if the template has the same actor name in it.
+
+To install the actors into Kepler, go to the module folder you created and type 
+
+gradle install
+
+Requires Kepler 2.4 to be installed with $KEPLER environment configured
+
+The module files in KeplerData and .kepler in the home directory may need to be
+deleted for modules to appear after installation.
