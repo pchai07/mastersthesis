@@ -3,6 +3,8 @@ import sys
 import getopt
 import shutil
 
+removeCarriageReturn = -1
+
 def folderCreate(folder):
 
     from os.path import expanduser
@@ -197,7 +199,7 @@ def main(argv):
     lines = f.readlines()
     f.close()
     modName = lines[0]
-    modName = modName[1:-2]
+    modName = modName[1:removeCarriageReturn]
     print "module Name: "+modName
     for i in lines[1:]:
         count+=1
@@ -216,7 +218,7 @@ def main(argv):
         test = i.split(",")
         varName.append(test[0][1:])
         varIO.append(test[1])
-        varType.append(test[2][:-2])
+        varType.append(test[2][:removeCarriageReturn])
     #print varName,varIO,varType
 #TEMPLATE FILE LOCATION GOES HERE   
     try:
